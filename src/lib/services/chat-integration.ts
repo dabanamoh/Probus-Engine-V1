@@ -226,4 +226,4 @@ export class ChatIntegrationService {
   }
 }
 
-export const chatIntegrationService = new ChatIntegrationService()
+export const syncMessages = chatIntegrationService.syncMessages.bind(chatIntegrationService)
