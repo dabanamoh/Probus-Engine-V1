@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Missing threat ID in query' },
+        { status: 400 }
+      )
+    }
+
     const threat = await db.threat.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         company: {
           select: {
@@ -55,16 +62,23 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Missing threat ID in query' },
+        { status: 400 }
+      )
+    }
+
     const body = await request.json()
     const { status, assignedTo } = body
 
     const threat = await db.threat.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(status && { status }),
         ...(assignedTo && { assignedTo }),
