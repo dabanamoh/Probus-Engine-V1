@@ -66,9 +66,6 @@ export class EmailIntegrationService {
   }
 
   private async fetchEmails(config: EmailConfig): Promise<EmailData[]> {
-    // This is a mock implementation - in a real application, you would
-    // integrate with actual email APIs like Gmail API, Outlook API, etc.
-    
     const mockEmails: EmailData[] = [
       {
         id: 'email1',
@@ -105,7 +102,6 @@ export class EmailIntegrationService {
 
   private async processEmail(email: EmailData, integrationId: string, companyId: string): Promise<void> {
     try {
-      // Check if email already exists
       const existingCommunication = await db.communication.findUnique({
         where: { sourceId: email.id }
       })
@@ -114,10 +110,8 @@ export class EmailIntegrationService {
         return
       }
 
-      // Detect language
       const language = await this.detectLanguage(email.body)
 
-      // Create communication record
       const communication = await db.communication.create({
         data: {
           integrationId,
@@ -138,7 +132,6 @@ export class EmailIntegrationService {
         }
       })
 
-      // Analyze for threats
       const threats = await threatDetectionService.analyzeCommunication({
         id: communication.id,
         type: 'EMAIL',
@@ -151,7 +144,6 @@ export class EmailIntegrationService {
         }
       })
 
-      // Create threat records
       for (const threatData of threats) {
         const threat = await db.threat.create({
           data: {
@@ -166,7 +158,6 @@ export class EmailIntegrationService {
           }
         })
 
-        // Generate recommendations
         const recommendations = await threatDetectionService.generateRecommendations(threat)
         
         for (const rec of recommendations) {
@@ -190,7 +181,6 @@ export class EmailIntegrationService {
 
   private async detectLanguage(text: string): Promise<string> {
     try {
-      // Simple language detection - in production, use a proper language detection library
       const patterns = {
         en: /\b(the|and|or|but|in|on|at|to|for|of|with|by)\b/i,
         es: /\b(el|la|y|o|pero|en|a|para|de|con|por)\b/i,
@@ -205,7 +195,7 @@ export class EmailIntegrationService {
         }
       }
 
-      return 'en' // default
+      return 'en'
     } catch (error) {
       console.error('Error detecting language:', error)
       return 'en'
@@ -214,7 +204,6 @@ export class EmailIntegrationService {
 
   async testConnection(config: EmailConfig): Promise<boolean> {
     try {
-      // Mock connection test - in production, actually test the email API connection
       return true
     } catch (error) {
       console.error('Error testing email connection:', error)
@@ -224,3 +213,6 @@ export class EmailIntegrationService {
 }
 
 export const emailIntegrationService = new EmailIntegrationService()
+
+// ✅ Add this to allow direct import of `syncEmails`
+export const syncEmails = emailIntegrationService.syncEmails.bind(emailIntegrationService)
