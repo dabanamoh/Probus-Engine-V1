@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
+import { Company } from '@prisma/client' // ✅ Import Company type
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    let company = null
+    let company: Company | null = null // ✅ Correctly typed
     if (companyName) {
       company = await db.company.create({
         data: {
