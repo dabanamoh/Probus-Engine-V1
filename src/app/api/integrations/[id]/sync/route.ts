@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import emailIntegrationService from '@/lib/services/email-integration';
-import chatIntegrationService from '@/lib/services/chat-integration';
+import * as emailIntegrationService from '@/lib/services/email-integration';
+import * as chatIntegrationService from '@/lib/services/chat-integration';
 
 export async function POST(request: NextRequest) {
   try {
