@@ -40,7 +40,7 @@ async function createCustomServer() {
       }
     });
 
-    setupSocket(io);
+    // setupSocket(io); // Commented out because setupSocket is not available
 
     // Start the server
     server.listen(currentPort, hostname, () => {
