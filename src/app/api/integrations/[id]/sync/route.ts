@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import * as emailIntegrationService from '@/lib/services/email-integration';
-import * as chatIntegrationService from '@/lib/services/chat-integration';
+import { syncEmails } from '@/lib/services/email-integration';
+import { syncMessages } from '@/lib/services/chat-integration';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,9 +26,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (integration.type.includes('EMAIL')) {
-      await emailIntegrationService.syncEmails(id);
+      await syncEmails(id);
     } else if (integration.type.includes('CHAT')) {
-      await chatIntegrationService.syncMessages(id);
+      await syncMessages(id);
     }
 
     return NextResponse.json({
