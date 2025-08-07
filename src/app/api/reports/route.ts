@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { calculateComplianceScore } from '@/lib/utils';
 
 export async function POST(req: NextRequest) {
   try {
-    // Authenticate using JWT
-    const userData = await requireAuth(req);
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user || !session.user.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { title, description, format, type, threats } = await req.json();
 
     const user = await db.user.findUnique({
       where: {
-        id: userData.userId
+        email: session.user.email
       },
       include: {
         company: true
@@ -25,16 +29,21 @@ export async function POST(req: NextRequest) {
 
     const companyId = user.companyId;
 
+    // Dummy report data to satisfy the "data" field
+    const reportData = {
+      threatSummary: {},
+      complianceScore: 0
+    };
+
     const report = await db.report.create({
       data: {
-        company: {
-          connect: { id: companyId }
-        },
+        companyId,
         type,
         title,
         description,
         format,
-        status: 'GENERATING'
+        status: 'GENERATING',
+        data: reportData
       }
     });
 
@@ -42,9 +51,22 @@ export async function POST(req: NextRequest) {
     const threatSummary = generateThreatSummary(threats);
     const complianceScore = calculateComplianceScore(threats);
 
+    // Optional: update the report with actual data
+    await db.report.update({
+      where: { id: report.id },
+      data: {
+        data: {
+          threatSummary,
+          complianceScore
+        },
+        status: 'COMPLETED',
+        completedAt: new Date()
+      }
+    });
+
     return NextResponse.json({
       message: 'Report generated',
-      report,
+      reportId: report.id,
       threatSummary,
       complianceScore
     });
