@@ -29,8 +29,7 @@ export async function POST(req: NextRequest) {
 
     const companyId = user.companyId;
 
-    // Dummy report data to satisfy the "data" field
-    const reportData = {
+    const initialData = {
       threatSummary: {},
       complianceScore: 0
     };
@@ -43,15 +42,13 @@ export async function POST(req: NextRequest) {
         description,
         format,
         status: 'GENERATING',
-        data: reportData
+        data: initialData
       }
     });
 
-    // Simulate threat analysis summary and compliance score
     const threatSummary = generateThreatSummary(threats);
     const complianceScore = calculateComplianceScore(threats);
 
-    // Optional: update the report with actual data
     await db.report.update({
       where: { id: report.id },
       data: {
@@ -76,7 +73,38 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Helper function to summarize threats
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session || !session.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await db.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user || !user.companyId) {
+      return NextResponse.json({ error: 'User or company not found' }, { status: 404 });
+    }
+
+    const reports = await db.report.findMany({
+      where: {
+        companyId: user.companyId
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return NextResponse.json({ reports });
+  } catch (error) {
+    console.error('Failed to fetch reports:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
 function generateThreatSummary(threats: any[]) {
   return {
     totalThreats: threats.length,
