@@ -42,7 +42,9 @@ export async function POST(request: NextRequest) {
 
     const report = await db.report.create({
       data: {
-        companyId,
+        company: {
+          connect: { id: companyId }
+        },
         type,
         title,
         description,
