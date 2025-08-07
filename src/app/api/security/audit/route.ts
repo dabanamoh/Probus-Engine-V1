@@ -6,6 +6,14 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calculateComplianceScore } from '@/lib/reports/compliance';
 
+type CustomUser = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  companyId: string; // ✅ Add this so TypeScript knows it exists
+};
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
@@ -13,7 +21,7 @@ export async function POST(req: Request) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
-  const user = session.user;
+  const user = session.user as CustomUser; // ✅ Cast to extended user type
 
   const { title, description, data } = await req.json();
 
@@ -44,7 +52,8 @@ export async function GET(req: Request) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
-  const user = session.user;
+  const user = session.user as CustomUser; // ✅ Cast to extended user type
+
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get('page') || '1');
   const pageSize = parseInt(searchParams.get('pageSize') || '10');
