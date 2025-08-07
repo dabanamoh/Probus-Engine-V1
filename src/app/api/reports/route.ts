@@ -42,9 +42,7 @@ export async function POST(request: NextRequest) {
 
     const report = await db.report.create({
       data: {
-        company: {
-          connect: { id: companyId }
-        },
+        companyId,
         type,
         title,
         description,
@@ -131,108 +129,4 @@ async function generateThreatSummary(companyId: string) {
         return acc
       }, {} as Record<string, number>),
       byStatus: threats.reduce((acc, threat) => {
-        acc[threat.status] = (acc[threat.status] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)
-    },
-    threats: threats.map(threat => ({
-      id: threat.id,
-      type: threat.type,
-      severity: threat.severity,
-      title: threat.title,
-      description: threat.description,
-      confidence: threat.confidence,
-      status: threat.status,
-      createdAt: threat.createdAt,
-      communicationType: threat.communication?.type
-    }))
-  }
-}
-
-async function generateComplianceReport(companyId: string) {
-  const threats = await db.threat.findMany({ where: { companyId } })
-  const communications = await db.communication.findMany({
-    where: {
-      integration: { companyId }
-    }
-  })
-  const integrations = await db.integration.findMany({ where: { companyId } })
-
-  const resolvedThreats = threats.filter(t => t.status === 'RESOLVED').length
-  const totalThreats = threats.length
-
-  return {
-    complianceScore: totalThreats > 0 ? Math.round((resolvedThreats / totalThreats) * 100) : 100,
-    metrics: {
-      totalThreats,
-      resolvedThreats,
-      openThreats: threats.filter(t => t.status === 'OPEN').length,
-      communicationsAnalyzed: communications.filter(c => c.analyzedAt !== null).length,
-      activeIntegrations: integrations.filter(i => i.status === 'ACTIVE').length
-    },
-    recommendations: [
-      'Implement regular security training',
-      'Monitor communication patterns',
-      'Maintain up-to-date integrations',
-      'Review and update security policies'
-    ]
-  }
-}
-
-async function generateUserActivityReport(companyId: string) {
-  const users = await db.user.findMany({ where: { companyId } })
-  const threats = await db.threat.findMany({ where: { companyId } })
-
-  return {
-    userSummary: {
-      totalUsers: users.length,
-      byRole: users.reduce((acc, user) => {
-        acc[user.role] = (acc[user.role] || 0) + 1
-        return acc
-      }, {} as Record<string, number>),
-      byLanguage: users.reduce((acc, user) => {
-        acc[user.language] = (acc[user.language] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)
-    },
-    threatActivity: {
-      totalThreats: threats.length,
-      thisMonth: threats.filter(t => {
-        const threatDate = new Date(t.createdAt)
-        const now = new Date()
-        return threatDate.getMonth() === now.getMonth() && 
-               threatDate.getFullYear() === now.getFullYear()
-      }).length,
-      trends: 'Decreasing' // This would be calculated based on historical data
-    }
-  }
-}
-
-async function generateIntegrationHealthReport(companyId: string) {
-  const integrations = await db.integration.findMany({ 
-    where: { companyId },
-    include: {
-      communications: {
-        take: 5,
-        orderBy: { createdAt: 'desc' }
-      }
-    }
-  })
-
-  return {
-    integrationSummary: {
-      total: integrations.length,
-      active: integrations.filter(i => i.status === 'ACTIVE').length,
-      inactive: integrations.filter(i => i.status === 'INACTIVE').length,
-      error: integrations.filter(i => i.status === 'ERROR').length
-    },
-    integrations: integrations.map(integration => ({
-      id: integration.id,
-      type: integration.type,
-      name: integration.name,
-      status: integration.status,
-      lastSync: integration.lastSyncAt,
-      recentCommunications: integration.communications.length
-    }))
-  }
-}
+        acc[thre]()
