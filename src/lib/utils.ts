@@ -4,27 +4,20 @@ export function cn(...args: any[]) {
   return args.filter(Boolean).join(' ')
 }
 
-// Add this function
+// ✅ Add and export this function
 export function calculateComplianceScore(threats: any[]): number {
-  if (!threats || threats.length === 0) return 100
+  if (!threats || threats.length === 0) return 100;
 
-  const totalThreats = threats.length
-  const severityWeights: Record<string, number> = {
-    high: 3,
-    medium: 2,
-    low: 1
-  }
-
-  let riskPoints = 0
-
+  let score = 100;
   for (const threat of threats) {
-    const severity = threat.severity?.toLowerCase?.()
-    riskPoints += severityWeights[severity] || 1
+    if (threat.severity === 'HIGH') {
+      score -= 20;
+    } else if (threat.severity === 'MEDIUM') {
+      score -= 10;
+    } else if (threat.severity === 'LOW') {
+      score -= 5;
+    }
   }
 
-  // Max risk = all threats are high
-  const maxRisk = totalThreats * severityWeights.high
-  const score = ((maxRisk - riskPoints) / maxRisk) * 100
-
-  return Math.round(score)
+  return Math.max(score, 0); // never go below 0
 }
