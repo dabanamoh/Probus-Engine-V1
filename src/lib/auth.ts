@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken'
 import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
+import { NextAuthOptions } from 'next-auth'
+import CredentialsProvider from 'next-auth/providers/credentials'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
@@ -13,18 +15,18 @@ export interface DecodedToken {
   exp: number
 }
 
+// --- Auth verification functions ---
 export async function verifyToken(request: NextRequest): Promise<DecodedToken | null> {
   try {
     const authHeader = request.headers.get('authorization')
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return null
     }
 
     const token = authHeader.substring(7)
     const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken
-    
-    // Verify session exists
+
     const session = await db.session.findFirst({
       where: {
         userId: decoded.userId,
@@ -48,21 +50,17 @@ export async function verifyToken(request: NextRequest): Promise<DecodedToken | 
 
 export async function requireAuth(request: NextRequest): Promise<DecodedToken> {
   const decoded = await verifyToken(request)
-  
   if (!decoded) {
     throw new Error('Unauthorized')
   }
-  
   return decoded
 }
 
 export async function requireRole(request: NextRequest, requiredRoles: string[]): Promise<DecodedToken> {
   const decoded = await requireAuth(request)
-  
   if (!requiredRoles.includes(decoded.role)) {
     throw new Error('Insufficient permissions')
   }
-  
   return decoded
 }
 
@@ -76,6 +74,41 @@ export function createAuthMiddleware(allowedRoles?: string[]) {
       }
     } catch (error) {
       throw error
+    }
+  }
+}
+
+// --- NextAuth config export ---
+export const authOptions: NextAuthOptions = {
+  providers: [
+    CredentialsProvider({
+      name: 'Credentials',
+      credentials: {
+        email: { label: 'Email', type: 'text' },
+        password: { label: 'Password', type: 'password' }
+      },
+      async authorize(credentials) {
+        const user = await db.user.findUnique({
+          where: { email: credentials?.email }
+        })
+
+        if (user && credentials?.password === user.password) {
+          return user
+        }
+
+        return null
+      }
+    })
+  ],
+  session: {
+    strategy: 'jwt'
+  },
+  callbacks: {
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.sub
+      }
+      return session
     }
   }
 }
