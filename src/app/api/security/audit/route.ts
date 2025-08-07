@@ -1,3 +1,5 @@
+// src/app/api/security/audit/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
@@ -38,11 +40,11 @@ export async function GET(request: NextRequest) {
 
     // Perform security analysis
     const securityAudit = {
-      riskAssessment: this.assessRisks(threats),
-      dataProtection: this.assessDataProtection(communications),
-      accessControl: this.assessAccessControl(users),
-      systemIntegrity: this.assessSystemIntegrity(integrations),
-      recommendations: this.generateSecurityRecommendations(threats, communications, integrations),
+      riskAssessment: assessRisks(threats),
+      dataProtection: assessDataProtection(communications),
+      accessControl: assessAccessControl(users),
+      systemIntegrity: assessSystemIntegrity(integrations),
+      recommendations: generateSecurityRecommendations(threats, communications, integrations),
       auditSummary: {
         totalRisks: threats.length,
         highRiskCount: threats.filter(t => t.severity === 'CRITICAL' || t.severity === 'HIGH').length,
@@ -100,7 +102,7 @@ function assessRisks(threats: any[]) {
       }
       return acc
     }, {} as any),
-    trends: this.calculateRiskTrends(threats)
+    trends: calculateRiskTrends(threats)
   }
 }
 
