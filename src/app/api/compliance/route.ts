@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get compliance metrics
+    // Get data from database
     const threats = await db.threat.findMany({
       where: { companyId },
       include: {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       where: { companyId }
     })
 
-    // Calculate compliance metrics
+    // Build compliance data
     const complianceData = {
       threatMetrics: {
         total: threats.length,
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
           return acc
         }, {} as Record<string, number>)
       },
-      complianceScore: this.calculateComplianceScore(threats, communications, integrations)
+      complianceScore: calculateComplianceScore(threats, communications, integrations)
     }
 
     return NextResponse.json({ complianceData })
@@ -103,7 +103,6 @@ export async function GET(request: NextRequest) {
 }
 
 function calculateComplianceScore(threats: any[], communications: any[], integrations: any[]) {
-  // Simple compliance score calculation
   const totalThreats = threats.length
   const resolvedThreats = threats.filter(t => t.status === 'RESOLVED').length
   const analyzedCommunications = communications.filter(c => c.analyzedAt !== null).length
@@ -113,7 +112,11 @@ function calculateComplianceScore(threats: any[], communications: any[], integra
   const communicationAnalysisRate = communications.length > 0 ? analyzedCommunications / communications.length : 1
   const integrationHealthRate = integrations.length > 0 ? activeIntegrations / integrations.length : 1
 
-  const score = Math.round((threatResolutionRate * 0.4 + communicationAnalysisRate * 0.4 + integrationHealthRate * 0.2) * 100)
+  const score = Math.round(
+    (threatResolutionRate * 0.4 +
+      communicationAnalysisRate * 0.4 +
+      integrationHealthRate * 0.2) * 100
+  )
 
   return {
     score,
