@@ -1,132 +1,82 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { calculateComplianceScore } from '@/lib/utils';
 
-export async function GET(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const companyId = searchParams.get('companyId')
+    const session = await getServerSession(authOptions);
 
-    if (!companyId) {
-      return NextResponse.json(
-        { error: 'Company ID is required' },
-        { status: 400 }
-      )
+    if (!session || !session.user || !session.user.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const reports = await db.report.findMany({
-      where: { companyId },
-      orderBy: { createdAt: 'desc' }
-    })
+    const { title, description, format, type, threats } = await req.json();
 
-    return NextResponse.json({ reports })
-  } catch (error) {
-    console.error('Error fetching reports:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch reports' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { companyId, type, title, description, format } = body
-
-    if (!companyId || !type || !title) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
-    }
-
-    const report = await db.report.create({
-      data: {
-        companyId,
-        type,
-        title,
-        description,
-        format: format || 'PDF',
-        status: 'GENERATING'
-      }
-    })
-
-    // Start report generation in the background
-    generateReportData(report.id).catch(console.error)
-
-    return NextResponse.json({ report }, { status: 201 })
-  } catch (error) {
-    console.error('Error creating report:', error)
-    return NextResponse.json(
-      { error: 'Failed to create report' },
-      { status: 500 }
-    )
-  }
-}
-
-async function generateReportData(reportId: string) {
-  try {
-    const report = await db.report.findUnique({
-      where: { id: reportId },
+    const user = await db.user.findUnique({
+      where: {
+        email: session.user.email
+      },
       include: {
         company: true
       }
-    })
+    });
 
-    if (!report) return
-
-    let reportData = {}
-
-    switch (report.type) {
-      case 'THREAT_SUMMARY':
-        reportData = await generateThreatSummary(report.companyId)
-        break
-      case 'COMPLIANCE_REPORT':
-        reportData = await generateComplianceReport(report.companyId)
-        break
-      case 'USER_ACTIVITY':
-        reportData = await generateUserActivityReport(report.companyId)
-        break
-      case 'INTEGRATION_HEALTH':
-        reportData = await generateIntegrationHealthReport(report.companyId)
-        break
+    if (!user || !user.companyId) {
+      return NextResponse.json({ error: 'User or company not found' }, { status: 404 });
     }
 
-    await db.report.update({
-      where: { id: reportId },
+    const companyId = user.companyId;
+
+    const report = await db.report.create({
       data: {
-        data: reportData,
-        status: 'COMPLETED',
-        completedAt: new Date()
+        company: {
+          connect: { id: companyId }
+        },
+        type,
+        title,
+        description,
+        format,
+        status: 'GENERATING'
       }
-    })
+    });
+
+    // Simulate threat analysis summary and compliance score
+    const threatSummary = generateThreatSummary(threats);
+    const complianceScore = calculateComplianceScore(threats);
+
+    // Save result to database (optional or for future implementation)
+
+    return NextResponse.json({
+      message: 'Report generated',
+      report,
+      threatSummary,
+      complianceScore
+    });
   } catch (error) {
-    console.error('Error generating report data:', error)
-    await db.report.update({
-      where: { id: reportId },
-      data: { status: 'FAILED' }
-    })
+    console.error('Report generation error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-async function generateThreatSummary(companyId: string) {
-  const threats = await db.threat.findMany({
-    where: { companyId },
-    include: {
-      communication: true
-    }
-  })
-
+// Helper function to summarize threats
+function generateThreatSummary(threats: any[]) {
   return {
+    totalThreats: threats.length,
     summary: {
-      totalThreats: threats.length,
       byType: threats.reduce((acc, threat) => {
-        acc[threat.type] = (acc[threat.type] || 0) + 1
-        return acc
+        acc[threat.type] = (acc[threat.type] || 0) + 1;
+        return acc;
       }, {} as Record<string, number>),
       bySeverity: threats.reduce((acc, threat) => {
-        acc[threat.severity] = (acc[threat.severity] || 0) + 1
-        return acc
+        acc[threat.severity] = (acc[threat.severity] || 0) + 1;
+        return acc;
       }, {} as Record<string, number>),
       byStatus: threats.reduce((acc, threat) => {
-        acc[thre]()
+        acc[threat.status] = (acc[threat.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    }
+  };
+}
