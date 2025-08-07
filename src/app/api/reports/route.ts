@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireAuth } from '@/lib/auth';
 import { calculateComplianceScore } from '@/lib/utils';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session || !session.user || !session.user.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Authenticate using JWT
+    const userData = await requireAuth(req);
 
     const { title, description, format, type, threats } = await req.json();
 
     const user = await db.user.findUnique({
       where: {
-        email: session.user.email
+        id: userData.userId
       },
       include: {
         company: true
@@ -45,8 +41,6 @@ export async function POST(req: NextRequest) {
     // Simulate threat analysis summary and compliance score
     const threatSummary = generateThreatSummary(threats);
     const complianceScore = calculateComplianceScore(threats);
-
-    // Save result to database (optional or for future implementation)
 
     return NextResponse.json({
       message: 'Report generated',
