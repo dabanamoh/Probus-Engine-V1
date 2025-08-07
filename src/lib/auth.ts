@@ -106,9 +106,30 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.sub
+        session.user.id = token.sub as string
       }
       return session
     }
+  }
+}
+
+// --- Fix TypeScript error: add custom fields to session.user ---
+import { Session } from 'next-auth'
+
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string
+      name?: string | null
+      email?: string | null
+      image?: string | null
+    }
+  }
+
+  interface User {
+    id: string
+    name?: string | null
+    email?: string | null
+    image?: string | null
   }
 }
