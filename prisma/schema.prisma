@@ -276,6 +276,8 @@ enum ReportType {
   COMPLIANCE_REPORT
   USER_ACTIVITY
   INTEGRATION_HEALTH
+  AUDIT
+  VULNERABILITY
 }
 
 enum ReportFormat {
