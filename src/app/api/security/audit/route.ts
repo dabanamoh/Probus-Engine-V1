@@ -7,38 +7,42 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const companyId = searchParams.get('companyId')
+    const page = parseInt(searchParams.get('page') || '1', 10)
+    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10)
 
     if (!companyId) {
-      return NextResponse.json(
-        { error: 'Company ID is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Company ID is required' }, { status: 400 })
     }
 
-    // Get security audit data
     const threats = await db.threat.findMany({
       where: { companyId },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
     })
 
     const communications = await db.communication.findMany({
       where: {
-        integration: {
-          companyId
-        }
+        integration: { companyId }
       },
       orderBy: { createdAt: 'desc' }
     })
 
     const users = await db.user.findMany({
-      where: { companyId }
+      where: { companyId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true
+      }
     })
 
     const integrations = await db.integration.findMany({
       where: { companyId }
     })
 
-    // Perform security analysis
     const securityAudit = {
       riskAssessment: assessRisks(threats),
       dataProtection: assessDataProtection(communications),
@@ -52,10 +56,12 @@ export async function GET(request: NextRequest) {
         lowRiskCount: threats.filter(t => t.severity === 'LOW').length,
         auditDate: new Date().toISOString(),
         auditor: 'Probi AI Security System'
-      }
+      },
+      users // Included in response
     }
 
     return NextResponse.json({ securityAudit })
+
   } catch (error) {
     console.error('Error performing security audit:', error)
     return NextResponse.json(
@@ -64,6 +70,8 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+// --- Utility Functions ---
 
 function assessRisks(threats: any[]) {
   const riskCategories = {
@@ -120,7 +128,7 @@ function assessDataProtection(communications: any[]) {
   return {
     totalCommunications: communications.length,
     potentialDataLeaks: potentialDataLeaks.length,
-    dataLeakPercentage: communications.length > 0 ? 
+    dataLeakPercentage: communications.length > 0 ?
       Math.round((potentialDataLeaks.length / communications.length) * 100) : 0,
     byLanguage: potentialDataLeaks.reduce((acc, comm) => {
       acc[comm.language] = (acc[comm.language] || 0) + 1
@@ -161,7 +169,7 @@ function assessSystemIntegrity(integrations: any[]) {
     activeIntegrations: activeIntegrations.length,
     inactiveIntegrations: inactiveIntegrations.length,
     errorIntegrations: errorIntegrations.length,
-    healthPercentage: integrations.length > 0 ? 
+    healthPercentage: integrations.length > 0 ?
       Math.round((activeIntegrations.length / integrations.length) * 100) : 0,
     byType: integrations.reduce((acc, integration) => {
       acc[integration.type] = {
@@ -174,9 +182,14 @@ function assessSystemIntegrity(integrations: any[]) {
 }
 
 function generateSecurityRecommendations(threats: any[], communications: any[], integrations: any[]) {
-  const recommendations = []
+  const recommendations: {
+    priority: string
+    category: string
+    title: string
+    description: string
+    actionItems: string[]
+  }[] = []
 
-  // Check for high-severity threats
   const highSeverityThreats = threats.filter(t => t.severity === 'CRITICAL' || t.severity === 'HIGH')
   if (highSeverityThreats.length > 0) {
     recommendations.push({
@@ -193,12 +206,10 @@ function generateSecurityRecommendations(threats: any[], communications: any[], 
     })
   }
 
-  // Check for data protection issues
-  const potentialDataLeaks = communications.filter(comm => {
-    const content = comm.content.toLowerCase()
-    const sensitiveKeywords = ['password', 'ssn', 'credit card', 'bank account', 'confidential']
-    return sensitiveKeywords.some(keyword => content.includes(keyword))
-  })
+  const sensitiveKeywords = ['password', 'ssn', 'credit card', 'bank account', 'confidential']
+  const potentialDataLeaks = communications.filter(comm =>
+    sensitiveKeywords.some(keyword => comm.content.toLowerCase().includes(keyword))
+  )
 
   if (potentialDataLeaks.length > 0) {
     recommendations.push({
@@ -215,7 +226,6 @@ function generateSecurityRecommendations(threats: any[], communications: any[], 
     })
   }
 
-  // Check integration health
   const inactiveIntegrations = integrations.filter(i => i.status !== 'ACTIVE')
   if (inactiveIntegrations.length > 0) {
     recommendations.push({
@@ -232,7 +242,6 @@ function generateSecurityRecommendations(threats: any[], communications: any[], 
     })
   }
 
-  // General security recommendations
   recommendations.push({
     priority: 'MEDIUM',
     category: 'Security Awareness',
@@ -263,7 +272,7 @@ function calculateRiskTrends(threats: any[]) {
   const trend = Object.entries(threatsByDay).map(([date, count]) => ({
     date,
     count,
-    severity: recentThreats.filter(t => 
+    severity: recentThreats.filter(t =>
       new Date(t.createdAt).toISOString().split('T')[0] === date
     ).reduce((severityAcc, t) => {
       severityAcc[t.severity] = (severityAcc[t.severity] || 0) + 1
