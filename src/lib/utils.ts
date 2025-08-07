@@ -4,20 +4,23 @@ export function cn(...args: any[]) {
   return args.filter(Boolean).join(' ')
 }
 
-// ✅ Add and export this function
 export function calculateComplianceScore(threats: any[]): number {
-  if (!threats || threats.length === 0) return 100;
+  if (!threats || threats.length === 0) return 100.0
 
-  let score = 100;
-  for (const threat of threats) {
-    if (threat.severity === 'HIGH') {
-      score -= 20;
-    } else if (threat.severity === 'MEDIUM') {
-      score -= 10;
-    } else if (threat.severity === 'LOW') {
-      score -= 5;
-    }
+  const severityWeights: Record<string, number> = {
+    CRITICAL: 5,
+    HIGH: 4,
+    MEDIUM: 2,
+    LOW: 1,
   }
 
-  return Math.max(score, 0); // never go below 0
+  const scores = threats.map(threat =>
+    severityWeights[threat.severity] ?? 1
+  )
+
+  const average = scores.reduce((a, b) => a + b, 0) / scores.length
+  const maxWeight = Math.max(...Object.values(severityWeights))
+
+  const complianceScore = 100 - (average / maxWeight) * 100
+  return Math.max(0, Math.round(complianceScore * 100) / 100)
 }
