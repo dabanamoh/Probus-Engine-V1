@@ -1,158 +1,83 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { calculateComplianceScore } from '@/lib/utils'
+// src/app/api/security/audit/route.ts
 
-export async function POST(req: NextRequest) {
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { calculateComplianceScore } from '@/lib/reports/compliance';
+
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
+  const user = session.user;
+
+  const { title, description, data } = await req.json();
+
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user || !session.user.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { title, description, format, threats } = await req.json()
-
-    const user = await db.user.findUnique({
-      where: {
-        email: session.user.email
-      },
-      include: {
-        company: true
-      }
-    })
-
-    if (!user || !user.companyId) {
-      return NextResponse.json({ error: 'User or company not found' }, { status: 404 })
-    }
-
-    const report = await db.report.create({
+    const report = await prisma.report.create({
       data: {
         company: { connect: { id: user.companyId } },
-        user: { connect: { id: user.id } },
+        // user: { connect: { id: user.id } }, // ❌ This line was causing the error — removed
         type: 'AUDIT',
         title,
         description,
-        format,
-        status: 'GENERATING'
-      }
-    })
-
-    const threatSummary = generateThreatSummary(threats)
-    const complianceScore = calculateComplianceScore(threats)
-
-    // Optionally update the report with the generated data
-    await db.report.update({
-      where: { id: report.id },
-      data: {
-        data: {
-          threatSummary,
-          complianceScore
-        },
+        data,
         status: 'COMPLETED',
-        completedAt: new Date()
-      }
-    })
+      },
+    });
 
-    return NextResponse.json({
-      message: 'Audit report generated successfully',
-      reportId: report.id,
-      threatSummary,
-      complianceScore
-    })
+    return NextResponse.json(report);
   } catch (error) {
-    console.error('Audit report creation failed:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    console.error('Error creating audit report:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
+  const user = session.user;
+  const { searchParams } = new URL(req.url);
+  const page = parseInt(searchParams.get('page') || '1');
+  const pageSize = parseInt(searchParams.get('pageSize') || '10');
+
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session || !session.user || !session.user.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const user = await db.user.findUnique({
+    const reports = await prisma.report.findMany({
       where: {
-        email: session.user.email
-      }
-    })
+        companyId: user.companyId,
+        type: 'AUDIT',
+      },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: { createdAt: 'desc' },
+    });
 
-    if (!user || !user.companyId) {
-      return NextResponse.json({ error: 'User or company not found' }, { status: 404 })
-    }
-
-    const { searchParams } = new URL(req.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '10')
-
-    const [reports, total] = await Promise.all([
-      db.report.findMany({
-        where: {
-          companyId: user.companyId,
-          type: 'AUDIT'
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          },
-          company: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
-        },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        orderBy: {
-          createdAt: 'desc'
-        }
-      }),
-      db.report.count({
-        where: {
-          companyId: user.companyId,
-          type: 'AUDIT'
-        }
-      })
-    ])
+    const total = await prisma.report.count({
+      where: {
+        companyId: user.companyId,
+        type: 'AUDIT',
+      },
+    });
 
     return NextResponse.json({
-      page,
-      pageSize,
-      total,
-      reports
-    })
+      data: reports,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
   } catch (error) {
-    console.error('Fetching audit reports failed:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
-  }
-}
-
-// Helper function to summarize threats
-function generateThreatSummary(threats: any[]) {
-  return {
-    totalThreats: threats.length,
-    summary: {
-      byType: threats.reduce((acc, threat) => {
-        acc[threat.type] = (acc[threat.type] || 0) + 1
-        return acc
-      }, {} as Record<string, number>),
-      bySeverity: threats.reduce((acc, threat) => {
-        acc[threat.severity] = (acc[threat.severity] || 0) + 1
-        return acc
-      }, {} as Record<string, number>),
-      byStatus: threats.reduce((acc, threat) => {
-        acc[threat.status] = (acc[threat.status] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)
-    }
+    console.error('Error fetching audit reports:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
